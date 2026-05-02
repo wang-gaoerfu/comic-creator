@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}} - AI漫画</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .header h1 {
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        .download-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .download-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .main {
+            flex: 1;
+            padding: 80px 20px 40px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .comic-container {
+            max-width: 600px;
+            width: 100%;
+        }
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .page img {
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+        .page-number {
+            text-align: center;
+            color: #888;
+            margin-top: 16px;
+            font-size: 14px;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            background: rgba(255,255,255,0.95);
+            padding: 12px 24px;
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .controls button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .controls button:hover:not(:disabled) {
+            background: #5a6fd6;
+            transform: translateY(-2px);
+        }
+        .controls button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .controls .page-indicator {
+            display: flex;
+            align-items: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .progress-bar {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{TITLE}}</h1>
+        <button class="download-btn" id="downloadAll" onclick="downloadAllImages()">
+            <span>📥</span>
+            <span id="downloadText">打包下载</span>
+        </button>
+    </div>
+
+    <div class="main">
+        <div class="comic-container" id="comicContainer">
+            {{PAGES}}
+        </div>
+    </div>
+
+    <div class="progress-bar">
+        <div class="fill" id="progressFill"></div>
+    </div>
+
+    <div class="controls">
+        <button id="prevBtn" onclick="prevPage()">◀ 上一页</button>
+        <span class="page-indicator">
+            <span id="currentPage">1</span> / <span id="totalPages">{{TOTAL}}</span>
+        </span>
+        <button id="nextBtn" onclick="nextPage()">下一页 ▶</button>
+    </div>
+
+    <script src="jszip.min.js"></script>
+    <script>
+        let currentPage = 1;
+        const totalPages = {{TOTAL}};
+
+        function showPage(n) {
+            if (n < 1 || n > totalPages) return;
+            currentPage = n;
+            
+            document.querySelectorAll('.page').forEach((p, i) => {
+                p.classList.toggle('active', i === n - 1);
+            });
+            
+            document.getElementById('currentPage').textContent = n;
+            document.getElementById('prevBtn').disabled = n === 1;
+            document.getElementById('nextBtn').disabled = n === totalPages;
+            document.getElementById('progressFill').style.width = (n / totalPages * 100) + '%';
+        }
+
+        function prevPage() { showPage(currentPage - 1); }
+        function nextPage() { showPage(currentPage + 1); }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') prevPage();
+            if (e.key === 'ArrowRight') nextPage();
+        });
+
+        async function downloadAllImages() {
+            const btn = document.getElementById('downloadAll');
+            const text = document.getElementById('downloadText');
+            btn.disabled = true;
+            text.textContent = '打包中...';
+
+            try {
+                const zip = new JSZip();
+                const imgFolder = zip.folder('{{TITLE}}');
+                
+                for (let i = 1; i <= totalPages; i++) {
+                    const img = document.querySelector(`.page:nth-child(${i}) img`);
+                    if (img) {
+                        const response = await fetch(img.src);
+                        const blob = await response.blob();
+                        const pageNum = String(i).padStart(2, '0');
+                        imgFolder.file(`panel${pageNum}.jpg`, blob);
+                    }
+                }
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = '{{TITLE}}.zip';
+                link.click();
+
+                text.textContent = '打包下载';
+            } catch (err) {
+                alert('下载失败: ' + err.message);
+                text.textContent = '打包下载';
+            }
+            btn.disabled = false;
+        }
+
+        showPage(1);
+    </script>
+</body>
+</html>
